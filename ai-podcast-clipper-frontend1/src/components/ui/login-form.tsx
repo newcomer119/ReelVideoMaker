@@ -1,62 +1,57 @@
 "use client";
+
 import { cn } from "~/lib/utils";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./card";
-import { Button } from "./button";
-import { Input } from "./input";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "./field";
+import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import Link from "next/link";
-import { signupSchema, type SignupFormValues } from "~/schemas/auth";
+import {
+  loginSchema,
+  signupSchema,
+  type LoginFormValues,
+  type SignupFormValues,
+} from "~/schemas/auth";
 import { signUp } from "~/actions/auth";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { Label } from "@radix-ui/react-label";
+import { Button } from "./button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./card";
+import { Input } from "./input";
 
-export function SignUpForm({
+export function LoginForm({
   className,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentPropsWithoutRef<"div">) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const router = useRouter()
+  const router = useRouter();
+
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<SignupFormValues>({ resolver: zodResolver(signupSchema) });
+  } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
 
-  const onSubmit = async (data: SignupFormValues) => {
+  const onSubmit = async (data: LoginFormValues) => {
     try {
       setIsSubmitting(true);
       setError(null);
-      const result = await signUp(data);
-      if (!result.success) {
-        setError(result.error || "An unexpected error has occurred");
-        return;
-      }
 
       const signInResult = await signIn("credentials", {
         email: data.email,
         password: data.password,
         redirect: false,
-        callbackUrl: "/",
       });
 
       if (signInResult?.error) {
-        setError(signInResult.error || "An unexpected error has occurred. Please try again.");
+        setError("Invalid email or password.");
       } else {
         router.push("/dashboard");
       }
-
     } catch (error) {
-      setError("An unexpected error has occurred ");
+      setError("An unexpected error occured");
     } finally {
       setIsSubmitting(false);
     }
@@ -66,16 +61,16 @@ export function SignUpForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader>
-          <CardTitle>Sign up </CardTitle>
+          <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account
+            Enter your email below to log in to your account
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)}>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="email">Email</FieldLabel>
+            <div className="flex flex-col gap-6">
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -86,10 +81,10 @@ export function SignUpForm({
                 {errors.email && (
                   <p className="text-sm text-red-500">{errors.email.message}</p>
                 )}
-              </Field>
-              <Field>
+              </div>
+              <div className="grid gap-2">
                 <div className="flex items-center">
-                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                  <Label htmlFor="password">Password</Label>
                 </div>
                 <Input
                   id="password"
@@ -102,21 +97,24 @@ export function SignUpForm({
                     {errors.password.message}
                   </p>
                 )}
-                {error && (
-                  <p className="rounded-md bg-red-50 p-3 text-sm text-red-500">
-                    {error}
-                  </p>
-                )}
-              </Field>
-              <Field>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Signing Up..." : "Sign Up"}
-                </Button>
-                <FieldDescription className="text-center">
-                  Already have an account? <Link href="/login">Sign In</Link>
-                </FieldDescription>
-              </Field>
-            </FieldGroup>
+              </div>
+
+              {error && (
+                <p className="rounded-md bg-red-50 p-3 text-sm text-red-500">
+                  {error}
+                </p>
+              )}
+
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? "Logging in..." : "Log in"}
+              </Button>
+            </div>
+            <div className="mt-4 text-center text-sm">
+              Don&apos;t have an account?{" "}
+              <Link href="/signup" className="underline underline-offset-4">
+                Sign up
+              </Link>
+            </div>
           </form>
         </CardContent>
       </Card>
