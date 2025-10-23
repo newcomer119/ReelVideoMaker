@@ -23,6 +23,7 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.2",
     "@aws-sdk/client-s3": "^3.914.0",
+    "@aws-sdk/s3-request-presigner": "^3.914.0",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/client": "^6.5.0",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -70,9 +71,12 @@
     "react-hook-form": "^7.65.0",
     "react-resizable-panels": "^3.0.6",
     "recharts": "^2.15.4",
+    "shadcn-dropzone": "^0.2.1",
     "sonner": "^2.0.7",
     "stripe": "^19.1.0",
     "tailwind-merge": "^3.3.1",
+    "uuid": "^13.0.0",
+    "uuid4": "^2.0.3",
     "vaul": "^1.1.2",
     "zod": "^3.25.76"
   },
