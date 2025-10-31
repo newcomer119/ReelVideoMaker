@@ -107,10 +107,10 @@ export function DashboardClient({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Podcast Clipper
+            EmpathAI Video Sentiment Analyzer
           </h1>
           <p className="text-muted-foreground">
-            Upload your podcast and get AI-generated clips instantly
+            Upload your video and analyze emotions & sentiment with AI
           </p>
         </div>
         <Link href="/dashboard/billing">
@@ -127,9 +127,9 @@ export function DashboardClient({
         <TabsContent value="upload">
           <Card>
             <CardHeader>
-              <CardTitle>Upload Podcast</CardTitle>
+              <CardTitle>Upload Video</CardTitle>
               <CardDescription>
-                Upload your audio or video file to generate clips
+                Upload your video file to analyze emotions and sentiment
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -184,7 +184,7 @@ export function DashboardClient({
                       Uploading...
                     </>
                   ) : (
-                    "Upload and Generate Clips"
+                    "Upload and Generate Analyzed Clips"
                   )}
                 </Button>
               </div>
@@ -212,7 +212,7 @@ export function DashboardClient({
                           <TableHead>File</TableHead>
                           <TableHead>Uploaded</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead>Clips created</TableHead>
+                          <TableHead>Analysis Results</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -244,12 +244,12 @@ export function DashboardClient({
                             <TableCell>
                               {item.clipsCount > 0 ? (
                                 <span>
-                                  {item.clipsCount} clip
+                                  {item.clipsCount} result
                                   {item.clipsCount !== 1 ? "s" : ""}
                                 </span>
                               ) : (
                                 <span className="text-muted-foreground">
-                                  No clips yet
+                                  No results yet
                                 </span>
                               )}
                             </TableCell>
@@ -267,10 +267,10 @@ export function DashboardClient({
         <TabsContent value="my-clips">
           <Card>
             <CardHeader>
-              <CardTitle>My Clips</CardTitle>
+              <CardTitle>Analysis Results</CardTitle>
               <CardDescription>
-                View and manage your generated clips here. Processing may take a
-                few minuntes.
+                View and manage your emotion & sentiment analysis results here. Processing may take a
+                few minutes.
               </CardDescription>
             </CardHeader>
             <CardContent>
