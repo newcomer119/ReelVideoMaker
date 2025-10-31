@@ -421,7 +421,7 @@ class AiPodcastClipper:
         return result
 
     def identify_moments(self, transcript: dict):
-        """Use OpenAI GPT-4o with function calling for maximum reliability"""
+        """Use OpenAI to identify 30-60 second viral moments from transcript"""
         
         # Extract segments
         segments_data = []
@@ -432,7 +432,7 @@ class AiPodcastClipper:
                 "text": segment["text"]
             })
         
-        print(f"Analyzing {len(segments_data)} transcript segments with GPT-4o...")
+        print(f"Analyzing {len(segments_data)} transcript segments with GPT-4o-mini...")
         
         # Define function schema for structured output
         tools = [
@@ -440,35 +440,35 @@ class AiPodcastClipper:
                 "type": "function",
                 "function": {
                     "name": "identify_podcast_clips",
-                    "description": "Identify the most viral and engaging moments from ANY video content (gaming, podcasts, tutorials, entertainment) that would make great social media clips",
+                    "description": "Identify viral 30-60 second clips from video content",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "clips": {
                                 "type": "array",
-                                "description": "Array of identified clip moments",
+                                "description": "30-60 second clips",
                                 "items": {
                                     "type": "object",
                                     "properties": {
                                         "start": {
                                             "type": "number",
-                                            "description": "Start time in seconds (must match exact timestamp from transcript)"
+                                            "description": "Start time in seconds"
                                         },
                                         "end": {
                                             "type": "number",
-                                            "description": "End time in seconds (must match exact timestamp from transcript)"
+                                            "description": "End time in seconds (MUST be 30-60 seconds after start)"
                                         },
                                         "reason": {
                                             "type": "string",
-                                            "description": "Why this moment would make a great clip (funny, insightful, controversial, emotional, etc.)"
+                                            "description": "Why this moment is viral"
                                         },
                                         "hook": {
                                             "type": "string",
-                                            "description": "Catchy title/hook for social media (under 60 characters)"
+                                            "description": "Catchy title (under 60 chars)"
                                         },
                                         "virality_score": {
                                             "type": "integer",
-                                            "description": "Predicted virality score from 1-10",
+                                            "description": "Score 1-10",
                                             "minimum": 1,
                                             "maximum": 10
                                         }
@@ -485,65 +485,45 @@ class AiPodcastClipper:
         
         try:
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o",  # Most reliable model
+                model="gpt-4o-mini",  # Cheaper and fast
                 messages=[
-                                         {
-                         "role": "system",
-                         "content": """You are an expert at identifying viral moments from ANY video content for social media clips (TikTok, Instagram Reels, YouTube Shorts).
+                    {
+                        "role": "system",
+                        "content": """You identify viral 30-60 second clips from video transcripts.
 
-Your goal: Find the most engaging 3-10 moments that will get views, shares, and engagement.
+CRITICAL REQUIREMENTS:
+1. Each clip MUST be exactly 30-60 seconds long
+2. Pick the CORE moment, then expand to 30-60 seconds by including before/after context
+3. Clips should be self-contained and engaging
 
-Find clips that are:
-- 30-60 seconds long (STRICT requirement)
-- Self-contained (no context needed)
-- Hook viewers in the first 2 seconds
-- Have a clear payoff, climax, or emotional beat
+HOW TO EXPAND SHORT MOMENTS:
+- If a great quote is at 100s, start clip at 85s and end at 125s
+- Add 10-20 seconds before and after the peak moment
+- Make sure total is 30-60 seconds
 
-CONTENT TYPES TO HANDLE:
+CONTENT TO FIND:
+- Controversial takes
+- Emotional stories
+- Surprising revelations
+- Actionable advice
+- Funny moments
+- Intense reactions
 
-Gaming/Streaming Content:
-- Epic plays, perfect executions, insane kills
-- Funny fails and unexpected outcomes
-- Intense reactions (excitement, anger, shock)
-- Clutch moments and comebacks
-- Jokes and funny commentary during gameplay
+AVOID:
+- Dead air or silence
+- Background setup
+- Abstract philosophy
 
-Podcast/Interview Content:
-- Controversial hot takes
-- Emotional personal stories
-- Surprising revelations or "Aha!" moments
-- Actionable life advice
-- Funny banter and timing
-
-Educational/How-To:
-- Pro tips and hacks that feel like secrets
-- Satisfying transformations or results
-- "Wait, what?" counterintuitive facts
-- Quick actionable takeaways
-
-General Entertainment:
-- Conflict, tension, or drama
-- Surprising plot twists or reveals
-- Emotional beats (happy/sad/funny)
-- Catchy one-liners or quotes
-
-AVOID at all costs:
-- Boring setup or exposition
-- Mid-conversation transitions
-- Abstract philosophical discussions
-- Moments requiring context or background knowledge
-- Awkward pauses or dead air
-
-CRITICAL: Only use exact start/end times from the provided transcript."""
-                     },
-                     {
-                         "role": "user",
-                         "content": f"Analyze this video transcript and identify the best viral moments:\n\n{json.dumps(segments_data, indent=2)}"
-                     }
+CRITICAL: Each clip must be 30-60 seconds. If you find a great moment at time X, expand it to [X-15, X+30] or similar."""
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Find viral 30-60 second clips in this transcript:\n\n{json.dumps(segments_data, indent=2)}"
+                    }
                 ],
                 tools=tools,
                 tool_choice={"type": "function", "function": {"name": "identify_podcast_clips"}},
-                temperature=0.3  # Lower for more consistent, reliable output
+                temperature=0.5
             )
             
             # Extract the function call
@@ -551,7 +531,7 @@ CRITICAL: Only use exact start/end times from the provided transcript."""
             clips_data = json.loads(tool_call.function.arguments)
             
             clips = clips_data.get("clips", [])
-            print(f"GPT-4o identified {len(clips)} potential clips")
+            print(f"GPT-4o-mini identified {len(clips)} potential clips")
             
             # Validate and filter clips
             validated_clips = []
@@ -564,10 +544,10 @@ CRITICAL: Only use exact start/end times from the provided transcript."""
                 
                 # Require at least 30 seconds, max 60 seconds
                 if duration < 30:
-                    print(f"Skipping clip too short ({duration}s): {clip.get('hook')}")
+                    print(f"Skipping clip too short ({duration:.1f}s): {clip.get('hook')}")
                     continue
                 elif duration > 60:
-                    print(f"Skipping clip too long ({duration}s): {clip.get('hook')}")
+                    print(f"Skipping clip too long ({duration:.1f}s): {clip.get('hook')}")
                     continue
                 
                 # Check for overlaps with already validated clips
@@ -586,12 +566,45 @@ CRITICAL: Only use exact start/end times from the provided transcript."""
             validated_clips.sort(key=lambda x: x.get("virality_score", 0), reverse=True)
             
             print(f"Final validated clips: {len(validated_clips)}")
+            
+            # If no clips found, create fallback clips
+            if len(validated_clips) == 0:
+                print("No clips validated, creating fallback clips...")
+                return self.create_fallback_clips(segments_data)
+            
             return validated_clips
             
         except Exception as e:
             print(f"Error calling OpenAI API: {e}")
-            print(f"Falling back to empty clip list")
+            print(f"Falling back to automatic clip generation")
+            return self.create_fallback_clips(segments_data)
+    
+    def create_fallback_clips(self, segments_data):
+        """Create fallback 30-45 second clips when AI fails"""
+        if not segments_data:
             return []
+        
+        # Get the total duration
+        total_duration = segments_data[-1]["end"]
+        
+        # Create 5 evenly spaced 30-second clips
+        num_clips = min(5, int(total_duration / 35))  # Space them out
+        
+        clips = []
+        for i in range(num_clips):
+            start_time = (total_duration / (num_clips + 1)) * (i + 1)
+            end_time = min(start_time + 30, total_duration)
+            
+            clips.append({
+                "start": max(0, start_time - 2),  # Start a bit early for context
+                "end": end_time,
+                "reason": "Automatically generated viral clip",
+                "hook": f"Clip {i+1}: Watch this moment",
+                "virality_score": 6
+            })
+        
+        print(f"Created {len(clips)} fallback clips")
+        return clips
 
     @modal.fastapi_endpoint(method="POST")
     def process_video(self, request: ProcessVideoRequest, token: HTTPAuthorizationCredentials = Depends(auth_scheme)):
