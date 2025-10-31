@@ -1,18 +1,14 @@
 "use client";
 
 import { cn } from "~/lib/utils";
-import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import Link from "next/link";
 import {
   loginSchema,
-  signupSchema,
   type LoginFormValues,
-  type SignupFormValues,
 } from "~/schemas/auth";
-import { signUp } from "~/actions/auth";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Label } from "@radix-ui/react-label";
@@ -50,7 +46,7 @@ export function LoginForm({
       } else {
         router.push("/dashboard");
       }
-    } catch (error) {
+    } catch {
       setError("An unexpected error occured");
     } finally {
       setIsSubmitting(false);

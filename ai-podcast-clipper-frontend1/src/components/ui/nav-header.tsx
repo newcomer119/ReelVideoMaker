@@ -4,8 +4,6 @@ import Link from "next/link";
 
 import { Avatar, AvatarFallback } from "./avatar";
 import { signOut } from "next-auth/react";
-import { useEffect } from "react";
-import { toast } from "sonner";
 import { Badge } from "./badge";
 import { Button } from "./button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "./dropdown-menu";

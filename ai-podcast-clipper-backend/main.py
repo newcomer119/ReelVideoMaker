@@ -15,7 +15,10 @@ import modal
 import numpy as np
 from pydantic import BaseModel
 import os
-from google import genai
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None  # Will be available in Modal environment
 
 import pysubs2
 from tqdm import tqdm
@@ -28,7 +31,7 @@ class ProcessVideoRequest(BaseModel):
 
 image = (modal.Image.from_registry(
     "nvidia/cuda:12.4.0-devel-ubuntu22.04", add_python="3.12")
-    .apt_install(["ffmpeg", "libgl1-mesa-glx", "wget", "libcudnn8", "libcudnn8-dev"])
+    .apt_install(["ffmpeg", "libgl1-mesa-glx", "wget", "libcudnn8", "libcudnn8-dev", "pkg-config", "libavcodec-dev", "libavformat-dev", "libswscale-dev", "libavdevice-dev", "libavfilter-dev", "libavutil-dev", "libswresample-dev", "build-essential", "clang"])
     .pip_install_from_requirements("requirements.txt")
     .run_commands(["mkdir -p /usr/share/fonts/truetype/custom",
                    "wget -O /usr/share/fonts/truetype/custom/Anton-Regular.ttf https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf",
@@ -147,16 +150,13 @@ def create_vertical_video(tracks, scores, pyframes_path, pyavi_path, audio_path,
 
 def create_basic_vertical_video(input_video_path, audio_path, output_path):
     """Create a basic vertical video when Columbia script fails"""
-    # Create vertical video directory
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Check if input files exist
     print(f"Checking input video: {input_video_path}")
     print(f"Input video exists: {os.path.exists(input_video_path)}")
     print(f"Checking audio: {audio_path}")
     print(f"Audio exists: {os.path.exists(audio_path)}")
     
-    # Simple vertical conversion using FFmpeg
     vertical_cmd = (f"ffmpeg -y -i {input_video_path} -i {audio_path} "
                    f"-vf 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2' "
                    f"-c:v h264 -preset fast -crf 23 -c:a aac -b:a 128k "
@@ -185,7 +185,6 @@ def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start: float, c
     os.makedirs(temp_dir, exist_ok=True)
     subtitle_path = os.path.join(temp_dir, "temp_subtitles.ass")
 
-    # Filter segments that overlap with our clip
     clip_segments = [segment for segment in transcript_segments
                      if segment.get("start") is not None
                      and segment.get("end") is not None
@@ -198,11 +197,8 @@ def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start: float, c
     current_start = None
     current_end = None
 
-    # Process each segment
     for segment in clip_segments:
-        # Check if this segment has word-level data
         if "words" in segment and segment["words"]:
-            # Process word by word
             for word_data in segment["words"]:
                 word = word_data.get("word", "").strip()
                 word_start = word_data.get("start")
@@ -231,7 +227,6 @@ def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start: float, c
                     current_words.append(word)
                     current_end = end_rel
         else:
-            # Fallback: use segment-level data
             text = segment.get("text", "").strip()
             seg_start = segment.get("start")
             seg_end = segment.get("end")
@@ -245,7 +240,6 @@ def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start: float, c
             if end_rel <= 0:
                 continue
 
-            # Split text into words for subtitle grouping
             words = text.split()
             for i, word in enumerate(words):
                 if not current_words:
@@ -299,7 +293,6 @@ def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start: float, c
 
     subs.save(subtitle_path)
 
-    # Check if we have any subtitles to add
     if not subtitles:
         print("No subtitles to add, copying original video")
         shutil.copy(clip_video_path, output_path)
@@ -315,7 +308,6 @@ def create_subtitles_with_ffmpeg(transcript_segments: list, clip_start: float, c
     if result.returncode != 0:
         print(f"Subtitle creation failed: {result.stderr}")
         print(f"FFmpeg stdout: {result.stdout}")
-        # Fallback: copy original video without subtitles
         print("Falling back to original video without subtitles")
         shutil.copy(clip_video_path, output_path)
     else:
@@ -333,7 +325,6 @@ def process_clip(base_dir: str, orignal_video_path: str, s3_key: str, clip_index
     clip_dir = base_dir_path / clip_name
     clip_dir.mkdir(parents=True, exist_ok=True)
 
-    # Segment Path : Original Clip from start to end
     clip_segment_path = clip_dir / f"{clip_name}_segment.mp4"
     vertical_mp4_path = clip_dir / "pyavi" / "video_out_vertical.mp4"
     substitute_output_path = clip_dir / "pyavi" / "video_with_subtitles.mp4"
@@ -365,7 +356,6 @@ def process_clip(base_dir: str, orignal_video_path: str, s3_key: str, clip_index
 
     shutil.copy(clip_segment_path, base_dir_path / f"{clip_name}.mp4")
 
-    # Create vertical video immediately after cutting segment
     print(f"Creating vertical video immediately with:")
     print(f"  clip_segment_path: {clip_segment_path}")
     print(f"  audio_path: {audio_path}")
@@ -375,10 +365,8 @@ def process_clip(base_dir: str, orignal_video_path: str, s3_key: str, clip_index
     
     create_basic_vertical_video(str(clip_segment_path), str(audio_path), vertical_mp4_path)
 
-    # Create subtitled version
     create_subtitles_with_ffmpeg(transcript_segments, start_time, end_time, str(vertical_mp4_path), str(substitute_output_path), max_words=5)
     
-    # Return the subtitled version instead of the basic vertical video
     return substitute_output_path
 
 
@@ -388,28 +376,24 @@ class AiPodcastClipper:
     def load_model(self):
         self.whisperx_model = whisperx.load_model("large-v2", device="cuda", compute_type="float16")
         self.alignment_model, self.metadata = whisperx.load_align_model(language_code="en", device="cuda")
-        self.gemini_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-
-
+        
+        # Replace Gemini with OpenAI for maximum reliability
+        self.openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
     def transcribe_video(self, base_dir: str, video_path: str) -> str:
         base_dir_path = pathlib.Path(base_dir)
         audio_path = base_dir_path / "audio.wav"
         
-        # First, check if the video has an audio stream
         probe_cmd = f"ffprobe -v quiet -select_streams a -show_entries stream=codec_type -of csv=p=0 {video_path}"
         probe_result = subprocess.run(probe_cmd, shell=True, capture_output=True, text=True)
         
         if probe_result.returncode != 0 or not probe_result.stdout.strip():
-            # Create a silent audio track with the same duration as the video
             duration_cmd = f"ffprobe -v quiet -show_entries format=duration -of csv=p=0 {video_path}"
             duration_result = subprocess.run(duration_cmd, shell=True, capture_output=True, text=True)
             duration = float(duration_result.stdout.strip()) if duration_result.returncode == 0 else 0
             
-            # Create silent audio with the video duration
             extract_cmd = f"ffmpeg -f lavfi -i anullsrc=channel_layout=mono:sample_rate=16000 -t {duration} -acodec pcm_s16le -ar 16000 -ac 1 {audio_path}"
         else:
-            # Extract audio from video
             extract_cmd = f"ffmpeg -i {video_path} -vn -acodec pcm_s16le -ar 16000 -ac 1 {audio_path}"
         
         result = subprocess.run(extract_cmd, shell=True, capture_output=True, text=True)
@@ -437,7 +421,9 @@ class AiPodcastClipper:
         return result
 
     def identify_moments(self, transcript: dict):
-        # Extract only the segments with start/end times for the AI
+        """Use OpenAI GPT-4o with function calling for maximum reliability"""
+        
+        # Extract segments
         segments_data = []
         for segment in transcript:
             segments_data.append({
@@ -446,27 +432,169 @@ class AiPodcastClipper:
                 "text": segment["text"]
             })
         
-        response = self.gemini_client.models.generate_content(model="gemini-2.0-flash-exp", contents=f"""
-This is a podcast video transcript. I need to create clips between 30-60 seconds long.
-
-Find interesting moments, stories, or Q&A segments from this transcript.
-
-Rules:
-- Return ONLY JSON format: [{{"start": seconds, "end": seconds}}, ...]
-- Clips should be 30-60 seconds long
-- No overlapping clips
-- Use exact timestamps from the transcript
-- Return empty list [] if no good clips found
-
-Transcript segments:
-{segments_data}
-
-Return only the JSON array:""")
-        return response.text      
+        print(f"Analyzing {len(segments_data)} transcript segments with GPT-4o...")
         
+        # Define function schema for structured output
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "identify_podcast_clips",
+                    "description": "Identify the most viral and engaging moments from ANY video content (gaming, podcasts, tutorials, entertainment) that would make great social media clips",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "clips": {
+                                "type": "array",
+                                "description": "Array of identified clip moments",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "start": {
+                                            "type": "number",
+                                            "description": "Start time in seconds (must match exact timestamp from transcript)"
+                                        },
+                                        "end": {
+                                            "type": "number",
+                                            "description": "End time in seconds (must match exact timestamp from transcript)"
+                                        },
+                                        "reason": {
+                                            "type": "string",
+                                            "description": "Why this moment would make a great clip (funny, insightful, controversial, emotional, etc.)"
+                                        },
+                                        "hook": {
+                                            "type": "string",
+                                            "description": "Catchy title/hook for social media (under 60 characters)"
+                                        },
+                                        "virality_score": {
+                                            "type": "integer",
+                                            "description": "Predicted virality score from 1-10",
+                                            "minimum": 1,
+                                            "maximum": 10
+                                        }
+                                    },
+                                    "required": ["start", "end", "reason", "hook", "virality_score"]
+                                }
+                            }
+                        },
+                        "required": ["clips"]
+                    }
+                }
+            }
+        ]
+        
+        try:
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o",  # Most reliable model
+                messages=[
+                                         {
+                         "role": "system",
+                         "content": """You are an expert at identifying viral moments from ANY video content for social media clips (TikTok, Instagram Reels, YouTube Shorts).
+
+Your goal: Find the most engaging 3-10 moments that will get views, shares, and engagement.
+
+Find clips that are:
+- 30-60 seconds long (STRICT requirement)
+- Self-contained (no context needed)
+- Hook viewers in the first 2 seconds
+- Have a clear payoff, climax, or emotional beat
+
+CONTENT TYPES TO HANDLE:
+
+Gaming/Streaming Content:
+- Epic plays, perfect executions, insane kills
+- Funny fails and unexpected outcomes
+- Intense reactions (excitement, anger, shock)
+- Clutch moments and comebacks
+- Jokes and funny commentary during gameplay
+
+Podcast/Interview Content:
+- Controversial hot takes
+- Emotional personal stories
+- Surprising revelations or "Aha!" moments
+- Actionable life advice
+- Funny banter and timing
+
+Educational/How-To:
+- Pro tips and hacks that feel like secrets
+- Satisfying transformations or results
+- "Wait, what?" counterintuitive facts
+- Quick actionable takeaways
+
+General Entertainment:
+- Conflict, tension, or drama
+- Surprising plot twists or reveals
+- Emotional beats (happy/sad/funny)
+- Catchy one-liners or quotes
+
+AVOID at all costs:
+- Boring setup or exposition
+- Mid-conversation transitions
+- Abstract philosophical discussions
+- Moments requiring context or background knowledge
+- Awkward pauses or dead air
+
+CRITICAL: Only use exact start/end times from the provided transcript."""
+                     },
+                     {
+                         "role": "user",
+                         "content": f"Analyze this video transcript and identify the best viral moments:\n\n{json.dumps(segments_data, indent=2)}"
+                     }
+                ],
+                tools=tools,
+                tool_choice={"type": "function", "function": {"name": "identify_podcast_clips"}},
+                temperature=0.3  # Lower for more consistent, reliable output
+            )
+            
+            # Extract the function call
+            tool_call = response.choices[0].message.tool_calls[0]
+            clips_data = json.loads(tool_call.function.arguments)
+            
+            clips = clips_data.get("clips", [])
+            print(f"GPT-4o identified {len(clips)} potential clips")
+            
+            # Validate and filter clips
+            validated_clips = []
+            for clip in clips:
+                if "start" not in clip or "end" not in clip:
+                    print(f"Skipping clip missing start/end: {clip.get('hook', 'Unknown')}")
+                    continue
+                
+                duration = clip["end"] - clip["start"]
+                
+                # Require at least 30 seconds, max 60 seconds
+                if duration < 30:
+                    print(f"Skipping clip too short ({duration}s): {clip.get('hook')}")
+                    continue
+                elif duration > 60:
+                    print(f"Skipping clip too long ({duration}s): {clip.get('hook')}")
+                    continue
+                
+                # Check for overlaps with already validated clips
+                overlaps = False
+                for validated in validated_clips:
+                    if not (clip["end"] <= validated["start"] or clip["start"] >= validated["end"]):
+                        print(f"Skipping overlapping clip: {clip.get('hook')}")
+                        overlaps = True
+                        break
+                
+                if not overlaps:
+                    validated_clips.append(clip)
+                    print(f"✓ Validated clip: {clip.get('hook')} ({duration:.1f}s, score: {clip.get('virality_score', 'N/A')})")
+            
+            # Sort by virality score
+            validated_clips.sort(key=lambda x: x.get("virality_score", 0), reverse=True)
+            
+            print(f"Final validated clips: {len(validated_clips)}")
+            return validated_clips
+            
+        except Exception as e:
+            print(f"Error calling OpenAI API: {e}")
+            print(f"Falling back to empty clip list")
+            return []
 
     @modal.fastapi_endpoint(method="POST")
-    def process_video(self,request:ProcessVideoRequest,token:HTTPAuthorizationCredentials = Depends(auth_scheme)):
+    def process_video(self, request: ProcessVideoRequest, token: HTTPAuthorizationCredentials = Depends(auth_scheme)):
         s3_key = request.s3_key
 
         if token.credentials != os.environ["AUTH_TOKEN"]:
@@ -474,9 +602,8 @@ Return only the JSON array:""")
         
         run_id = str(uuid.uuid4())
         base_dir = pathlib.Path("/tmp") / run_id
-        base_dir.mkdir(parents=True,exist_ok=True)
+        base_dir.mkdir(parents=True, exist_ok=True)
 
-        #Download the file 
         video_path = base_dir / "input.mp4"
         s3_client = boto3.client(
             "s3",
@@ -485,9 +612,7 @@ Return only the JSON array:""")
             region_name=os.environ.get("AWS_DEFAULT_REGION", "eu-north-1")
         )
         
-        
         try:
-            # First, check if the object exists
             s3_client.head_object(Bucket="ai-podcast-clipper11", Key=s3_key)
             s3_client.download_file("ai-podcast-clipper11", s3_key, str(video_path))
             
@@ -502,78 +627,66 @@ Return only the JSON array:""")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
 
+        # Transcribe video
         transcript_result = self.transcribe_video(str(base_dir), str(video_path))
         transcript_segments = transcript_result.get("segments", [])
 
-        #2 Identify the Raw Moments From the file 
+        # Use OpenAI to identify moments (much more reliable than Gemini)
         print(f"Transcript segments count: {len(transcript_segments)}")
-        print(f"First few segments: {transcript_segments[:2] if transcript_segments else 'No segments'}")
-        
-        identified_moments_raw = self.identify_moments(transcript_segments)
-        print(f"AI response: {identified_moments_raw}")
+        clip_moments = self.identify_moments(transcript_segments)
 
-        cleaning_json_string = identified_moments_raw.strip()
-        if cleaning_json_string.startswith("```json"):
-            cleaning_json_string = cleaning_json_string[len("```json"):].strip()
-        if cleaning_json_string.endswith("```"):
-            cleaning_json_string = cleaning_json_string[:-len("```")]
-        
-        try:
-            clip_moments = json.loads(cleaning_json_string)
-            print(f"Successfully parsed JSON: {clip_moments}")
-            if not clip_moments or not isinstance(clip_moments, list):
-                print("Clip moments is empty or not a list")
-                clip_moments = []
-        except json.JSONDecodeError as e:
-            print(f"JSON parsing failed: {e}")
-            print(f"Cleaned JSON string: {cleaning_json_string}")
-            clip_moments = []
-
-        #3 Process Clips
+        # Process clips
         print(f"Processing {len(clip_moments)} clips")
         generated_videos = []
-        s3_client = boto3.client(
-            "s3",
-            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-            region_name=os.environ.get("AWS_DEFAULT_REGION", "eu-north-1")
-        )
         
-        for index, moment in enumerate(clip_moments[:1]):
-            print(f"Processing clip {index}: {moment}")
-            if "start" in moment and "end" in moment:
-                print(f"Starting clip processing for moment {moment['start']} to {moment['end']}")
-                vertical_video_path = process_clip(str(base_dir), str(video_path), s3_key, index, moment["start"], moment["end"], transcript_segments)
-                
-                # Upload to S3
-                if vertical_video_path and vertical_video_path.exists():
-                    s3_key_dir = os.path.dirname(s3_key)
-                    clip_s3_key = f"{s3_key_dir}/clips/clip_{index}.mp4"
-                    video_url = upload_to_s3(vertical_video_path, clip_s3_key, s3_client)
-                    if video_url:
-                        generated_videos.append({
-                            "clip_index": index,
-                            "start_time": moment["start"],
-                            "end_time": moment["end"],
-                            "video_url": video_url
-                        })
-                        print(f"Uploaded clip {index} to S3: {video_url}")
-            else:
-                print(f"Skipping invalid moment: {moment}")
+        for index, moment in enumerate(clip_moments[:5]):  # Process top 5 clips
+            print(f"\n{'='*60}")
+            print(f"Processing clip {index + 1}/{len(clip_moments)}")
+            print(f"Hook: {moment.get('hook')}")
+            print(f"Reason: {moment.get('reason')}")
+            print(f"Time: {moment['start']:.1f}s - {moment['end']:.1f}s")
+            print(f"Virality Score: {moment.get('virality_score')}/10")
+            print(f"{'='*60}\n")
+            
+            vertical_video_path = process_clip(
+                str(base_dir), 
+                str(video_path), 
+                s3_key, 
+                index, 
+                moment["start"], 
+                moment["end"], 
+                transcript_segments
+            )
+            
+            # Upload to S3
+            if vertical_video_path and vertical_video_path.exists():
+                s3_key_dir = os.path.dirname(s3_key)
+                clip_s3_key = f"{s3_key_dir}/clips/clip_{index}.mp4"
+                video_url = upload_to_s3(vertical_video_path, clip_s3_key, s3_client)
+                if video_url:
+                    generated_videos.append({
+                        "clip_index": index,
+                        "start_time": moment["start"],
+                        "end_time": moment["end"],
+                        "duration": moment["end"] - moment["start"],
+                        "hook": moment.get("hook", ""),
+                        "reason": moment.get("reason", ""),
+                        "virality_score": moment.get("virality_score", 0),
+                        "video_url": video_url
+                    })
+                    print(f"✓ Uploaded clip {index} to S3: {video_url}")
 
+        # Cleanup
         if base_dir.exists():
             shutil.rmtree(base_dir, ignore_errors=True)
         
         return {
             "status": "success", 
+            "total_clips_identified": len(clip_moments),
             "clips_processed": len(generated_videos),
             "generated_videos": generated_videos
         }
 
-
-
-
-    
 
 @app.local_entrypoint()
 def main():
@@ -584,12 +697,12 @@ def main():
     url = ai_podcast_clipper.process_video.web_url
 
     payload = {
-        "s3_key" : "test1/mi65min.mp4"
+        "s3_key": "test1/mi65min.mp4"
     }
 
     headers = {
-        "Content-Type" : "application/json",
-        "Authorization" : "Bearer 123123"
+        "Content-Type": "application/json",
+        "Authorization": "Bearer 123123"
     }
 
     response = requests.post(url, json=payload, headers=headers)

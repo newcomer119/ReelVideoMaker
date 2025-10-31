@@ -26,7 +26,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <NavHeader credits={user.credits} email={user.email || ""} />
+      <NavHeader credits={user.credits} email={user.email ?? ""} />
       <main className="container mx-auto flex-1 py-6">{children}</main>
       <Toaster />
     </div>

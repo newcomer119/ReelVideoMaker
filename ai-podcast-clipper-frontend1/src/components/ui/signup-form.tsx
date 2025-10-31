@@ -38,7 +38,7 @@ export function SignUpForm({
       setError(null);
       const result = await signUp(data);
       if (!result.success) {
-        setError(result.error || "An unexpected error has occurred");
+        setError(result.error ?? "An unexpected error has occurred");
         return;
       }
 
@@ -50,12 +50,12 @@ export function SignUpForm({
       });
 
       if (signInResult?.error) {
-        setError(signInResult.error || "An unexpected error has occurred. Please try again.");
+        setError(signInResult.error ?? "An unexpected error has occurred. Please try again.");
       } else {
         router.push("/dashboard");
       }
 
-    } catch (error) {
+    } catch {
       setError("An unexpected error has occurred ");
     } finally {
       setIsSubmitting(false);

@@ -1,6 +1,5 @@
 "use server";
 
-import { env } from "~/env";
 import { hashPassword } from "~/lib/auth";
 import { signupSchema, type SignupFormValues } from "~/schemas/auth";
 import { db } from "~/server/db";
