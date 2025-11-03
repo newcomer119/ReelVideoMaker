@@ -29,6 +29,7 @@ import { Badge } from "./badge";
 import { useRouter } from "next/navigation";
 import { ClipDisplay } from "./clip-display";
 import { Chat } from "./chat";
+import { EditInterface } from "./edit-interface";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 
 export function DashboardClient({
@@ -122,11 +123,12 @@ export function DashboardClient({
       </div>
 
       <Tabs defaultValue="upload">
-        <TabsList>
-          <TabsTrigger value="upload">Upload</TabsTrigger>
-          <TabsTrigger value="my-clips">My Clips</TabsTrigger>
-          <TabsTrigger value="chat">Chat</TabsTrigger>
-        </TabsList>
+                  <TabsList>
+                    <TabsTrigger value="upload">Upload</TabsTrigger>
+                    <TabsTrigger value="my-clips">My Clips</TabsTrigger>
+                    <TabsTrigger value="chat">Chat</TabsTrigger>
+                    <TabsTrigger value="edit">Edit</TabsTrigger>
+                  </TabsList>
 
         <TabsContent value="upload">
           <Card>
@@ -326,6 +328,51 @@ export function DashboardClient({
                   }}
                 />
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="edit" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Edit Videos</CardTitle>
+              <CardDescription>
+                Use the visual timeline editor to precisely edit your videos. Select a video to edit.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4">
+                <label className="text-sm font-medium mb-2 block">
+                  Select Video to Edit
+                </label>
+                <Select
+                  value={selectedFileId ?? "none"}
+                  onValueChange={(value) =>
+                    setSelectedFileId(value === "none" ? undefined : value)
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a video" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Select a video...</SelectItem>
+                    {uploadedFiles
+                      .filter((file) => file.status === "processed")
+                      .map((file) => (
+                        <SelectItem key={file.id} value={file.id}>
+                          {file.filename}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedFileId ? (
+                <EditInterface uploadedFileId={selectedFileId} />
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <p>Please select a video to start editing</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

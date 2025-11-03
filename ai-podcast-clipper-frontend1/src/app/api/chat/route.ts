@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { chatWithTranscript } from "~/lib/chat";
+import { saveChatMessage } from "~/lib/chat-history";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { query, uploadedFileId } = body;
+    const { query, uploadedFileId, editPlans } = body;
 
     if (!query || typeof query !== "string") {
       return NextResponse.json(
@@ -22,6 +23,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Save user message
+    await saveChatMessage(
+      "user",
+      query,
+      session.user.id,
+      uploadedFileId,
+      { query },
+    );
+
     const result = await chatWithTranscript(
       query,
       uploadedFileId,
@@ -29,11 +39,31 @@ export async function POST(request: NextRequest) {
     );
 
     if (!result.success) {
+      // Save error message
+      await saveChatMessage(
+        "assistant",
+        result.error || "Sorry, I couldn't process your question.",
+        session.user.id,
+        uploadedFileId,
+      );
+
       return NextResponse.json(
         { error: result.error, answer: result.answer, citations: [] },
         { status: 400 },
       );
     }
+
+    // Save assistant message with citations and edit plans
+    await saveChatMessage(
+      "assistant",
+      result.answer ?? "",
+      session.user.id,
+      uploadedFileId,
+      {
+        citations: result.citations,
+        editPlans: editPlans,
+      },
+    );
 
     return NextResponse.json({
       success: true,
@@ -49,4 +79,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
 

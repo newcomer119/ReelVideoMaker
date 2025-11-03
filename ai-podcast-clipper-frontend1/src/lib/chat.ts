@@ -101,6 +101,10 @@ export async function chatWithTranscript(
           .join("\n")}`
       : "";
 
+    // Check if the query is an edit request
+    const editKeywords = ["trim", "cut", "remove", "delete", "split", "merge", "edit", "adjust", "change", "modify"];
+    const isEditRequest = editKeywords.some((keyword) => query.toLowerCase().includes(keyword));
+
     // Generate answer using OpenAI
     const systemPrompt = `You are a helpful assistant that answers questions about video content based on transcript segments.
 
@@ -109,14 +113,15 @@ IMPORTANT:
 - Use the format [MM:SS] when mentioning times
 - Be accurate and only use information from the provided context
 - If the question can't be answered from the context, say so
-- Format timestamps as clickable references like "(00:12 - 00:45)"`;
+- Format timestamps as clickable references like "(00:12 - 00:45)"
+${isEditRequest ? "- If the user is asking to edit/modify the video, acknowledge the request and suggest using the edit feature" : ""}`;
 
     const userPrompt = `Question: ${query}
 
 Relevant transcript segments (with timestamps):
 ${contextSegments}${clipsContext}
 
-Please provide a helpful answer to the question, citing specific timestamps where relevant.`;
+Please provide a helpful answer to the question, citing specific timestamps where relevant.${isEditRequest ? "\n\nNote: If this is an edit request, suggest that the user can use the edit feature to make changes." : ""}`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
