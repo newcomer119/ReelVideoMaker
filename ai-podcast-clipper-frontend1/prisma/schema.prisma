@@ -78,7 +78,8 @@ model UploadedFile {
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
 
-    clips Clip[]
+    clips      Clip[]
+    transcript Transcript?
 
     user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
     userId String
@@ -90,6 +91,14 @@ model Clip {
     id    String @id @default(cuid())
     s3Key String
 
+    // Clip metadata
+    hook           String?
+    reason         String?
+    startTime      Float?
+    endTime        Float?
+    viralityScore  Int?
+    clipIndex      Int?
+
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
@@ -100,6 +109,39 @@ model Clip {
     userId String
 
     @@index([s3Key])
+    @@index([uploadedFileId])
+}
+
+model Transcript {
+    id    String @id @default(cuid())
+    
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    uploadedFile   UploadedFile @relation(fields: [uploadedFileId], references: [id], onDelete: Cascade)
+    uploadedFileId String @unique
+
+    segments TranscriptSegment[]
+
+    @@index([uploadedFileId])
+}
+
+model TranscriptSegment {
+    id    String @id @default(cuid())
+    
+    start     Float
+    end       Float
+    text      String
+    words     Json? // Store word-level timestamps as JSON array
+    embedding Json? // Store embeddings as JSON array (1536 dimensions) - can convert to vector later
+
+    transcript   Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
+    transcriptId String
+
+    createdAt DateTime @default(now())
+
+    @@index([transcriptId])
+    @@index([start])
 }
 
 model VerificationToken {

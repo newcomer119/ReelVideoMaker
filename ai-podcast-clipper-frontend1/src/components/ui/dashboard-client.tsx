@@ -28,6 +28,8 @@ import {
 import { Badge } from "./badge";
 import { useRouter } from "next/navigation";
 import { ClipDisplay } from "./clip-display";
+import { Chat } from "./chat";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 
 export function DashboardClient({
   uploadedFiles,
@@ -46,6 +48,7 @@ export function DashboardClient({
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedFileId, setSelectedFileId] = useState<string | undefined>(undefined);
   const router = useRouter();
 
   const handleRefresh = async () => {
@@ -122,6 +125,7 @@ export function DashboardClient({
         <TabsList>
           <TabsTrigger value="upload">Upload</TabsTrigger>
           <TabsTrigger value="my-clips">My Clips</TabsTrigger>
+          <TabsTrigger value="chat">Chat</TabsTrigger>
         </TabsList>
 
         <TabsContent value="upload">
@@ -222,7 +226,7 @@ export function DashboardClient({
                               {item.filename}
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
-                              {new Date(item.createdAt).toLocaleDateString()}
+                              {new Date(item.createdAt).toLocaleDateString('en-US')}
                             </TableCell>
                             <TableCell>
                               {item.status === "queued" && (
@@ -275,6 +279,53 @@ export function DashboardClient({
             </CardHeader>
             <CardContent>
               <ClipDisplay clips={clips} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="chat" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Chat with Your Videos</CardTitle>
+              <CardDescription>
+                Ask questions about your video content. Select a video to chat about it specifically, or leave unselected to search all videos.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4">
+                <label className="text-sm font-medium mb-2 block">
+                  Select Video (Optional)
+                </label>
+                <Select
+                  value={selectedFileId ?? "all"}
+                  onValueChange={(value) =>
+                    setSelectedFileId(value === "all" ? undefined : value)
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All videos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Videos</SelectItem>
+                    {uploadedFiles
+                      .filter((file) => file.status === "processed")
+                      .map((file) => (
+                        <SelectItem key={file.id} value={file.id}>
+                          {file.filename}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="h-[600px]">
+                <Chat
+                  uploadedFileId={selectedFileId}
+                  onTimestampClick={(timestamp) => {
+                    // TODO: Implement video playback at timestamp
+                    console.log("Jump to timestamp:", timestamp);
+                  }}
+                />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

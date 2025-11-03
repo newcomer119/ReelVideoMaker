@@ -409,7 +409,7 @@ class AiPodcastClipper:
         audio = whisperx.load_audio(str(audio_path))
         result = self.whisperx_model.transcribe(audio, batch_size=16)
 
-        result = whisperx.align(
+        aligned_result = whisperx.align(
             result["segments"],
             self.alignment_model,
             self.metadata,
@@ -418,7 +418,19 @@ class AiPodcastClipper:
             return_char_alignments=False
         )
         duration = time.time() - start_time
-        return result
+        
+        # Verify the result structure
+        print(f"Alignment result type: {type(aligned_result)}")
+        if isinstance(aligned_result, dict):
+            print(f"Alignment result keys: {aligned_result.keys()}")
+            if "segments" in aligned_result:
+                print(f"Aligned segments count: {len(aligned_result['segments'])}")
+            else:
+                print("WARNING: 'segments' key not found in aligned result!")
+        else:
+            print(f"WARNING: Alignment result is not a dict: {type(aligned_result)}")
+        
+        return aligned_result
 
     def identify_moments(self, transcript: dict):
         """Use OpenAI to identify 30-60 second viral moments from transcript"""
@@ -642,7 +654,13 @@ CRITICAL: Each clip must be 30-60 seconds. If you find a great moment at time X,
 
         # Transcribe video
         transcript_result = self.transcribe_video(str(base_dir), str(video_path))
+        print(f"Transcript result type: {type(transcript_result)}")
+        print(f"Transcript result keys: {transcript_result.keys() if isinstance(transcript_result, dict) else 'Not a dict'}")
         transcript_segments = transcript_result.get("segments", [])
+        print(f"Raw transcript segments count: {len(transcript_segments)}")
+        if len(transcript_segments) > 0:
+            print(f"First segment sample: {transcript_segments[0]}")
+            print(f"First segment keys: {transcript_segments[0].keys() if isinstance(transcript_segments[0], dict) else 'Not a dict'}")
 
         # Use OpenAI to identify moments (much more reliable than Gemini)
         print(f"Transcript segments count: {len(transcript_segments)}")
@@ -689,16 +707,57 @@ CRITICAL: Each clip must be 30-60 seconds. If you find a great moment at time X,
                     })
                     print(f"✓ Uploaded clip {index} to S3: {video_url}")
 
+        # Prepare transcript segments for response
+        transcript_segments_response = []
+        print(f"\n=== PREPARING TRANSCRIPT FOR RESPONSE ===")
+        print(f"Input transcript_segments count: {len(transcript_segments)}")
+        
+        for segment in transcript_segments:
+            segment_data = {
+                "start": segment.get("start"),
+                "end": segment.get("end"),
+                "text": segment.get("text", "").strip()
+            }
+            # Include word-level timestamps if available
+            if "words" in segment and segment["words"]:
+                words_data = []
+                for word_data in segment["words"]:
+                    words_data.append({
+                        "word": word_data.get("word", "").strip(),
+                        "start": word_data.get("start"),
+                        "end": word_data.get("end"),
+                        "score": word_data.get("score")
+                    })
+                segment_data["words"] = words_data
+            transcript_segments_response.append(segment_data)
+        
+        print(f"Prepared transcript_segments_response count: {len(transcript_segments_response)}")
+        if len(transcript_segments_response) > 0:
+            print(f"First response segment sample: {transcript_segments_response[0]}")
+        
+        # Build response
+        response_data = {
+            "status": "success", 
+            "total_clips_identified": len(clip_moments),
+            "clips_processed": len(generated_videos),
+            "generated_videos": generated_videos,
+            "transcript": {
+                "segments": transcript_segments_response
+            }
+        }
+        
+        print(f"\n=== RESPONSE DATA ===")
+        print(f"Response keys: {response_data.keys()}")
+        print(f"Has transcript: {'transcript' in response_data}")
+        print(f"Transcript segments count in response: {len(response_data['transcript']['segments'])}")
+        print(f"Response structure: status={response_data['status']}, clips={len(generated_videos)}, transcript_segments={len(transcript_segments_response)}")
+        print(f"========================\n")
+
         # Cleanup
         if base_dir.exists():
             shutil.rmtree(base_dir, ignore_errors=True)
         
-        return {
-            "status": "success", 
-            "total_clips_identified": len(clip_moments),
-            "clips_processed": len(generated_videos),
-            "generated_videos": generated_videos
-        }
+        return response_data
 
 
 @app.local_entrypoint()
