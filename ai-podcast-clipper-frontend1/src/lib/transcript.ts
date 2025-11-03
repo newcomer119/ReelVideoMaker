@@ -27,7 +27,28 @@ export async function getFullTranscript(uploadedFileId: string) {
     }
 
     // Get the full transcript with all segments
-    const transcript = await (db as any).transcript.findFirst({
+    const transcript = await (db as {
+      transcript: {
+        findFirst: (args: {
+          where: { uploadedFileId: string };
+          include: {
+            segments: {
+              orderBy: { start: "asc" };
+            };
+          };
+        }) => Promise<{
+          id: string;
+          uploadedFileId: string;
+          segments: Array<{
+            id: string;
+            start: number;
+            end: number;
+            text: string;
+            words: unknown;
+          }>;
+        } | null>;
+      };
+    }).transcript.findFirst({
       where: {
         uploadedFileId,
       },
@@ -59,7 +80,7 @@ export async function getFullTranscript(uploadedFileId: string) {
         uploadedFileId: transcript.uploadedFileId,
         totalDuration,
         segmentCount: transcript.segments.length,
-        segments: transcript.segments.map((seg: any) => ({
+        segments: transcript.segments.map((seg) => ({
           id: seg.id,
           start: seg.start,
           end: seg.end,
@@ -106,7 +127,23 @@ export async function getTranscriptInRange(
     }
 
     // Get segments that overlap with the time range
-    const segments = await (db as any).transcriptSegment.findMany({
+    const segments = await (db as {
+      transcriptSegment: {
+        findMany: (args: {
+          where: {
+            transcript: { uploadedFileId: string };
+            AND: Array<{ start?: { lte: number }; end?: { gte: number } }>;
+          };
+          orderBy: { start: "asc" };
+        }) => Promise<Array<{
+          id: string;
+          start: number;
+          end: number;
+          text: string;
+          words: unknown;
+        }>>;
+      };
+    }).transcriptSegment.findMany({
       where: {
         transcript: {
           uploadedFileId,
@@ -123,7 +160,7 @@ export async function getTranscriptInRange(
 
     return {
       success: true,
-      segments: segments.map((seg: any) => ({
+      segments: segments.map((seg) => ({
         id: seg.id,
         start: seg.start,
         end: seg.end,

@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Clock, Scissors, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Clock, Scissors, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { Badge } from "./badge";
-import { Button } from "./button";
 
 interface EditRecord {
   id: string;
@@ -39,9 +38,12 @@ export function EditHistoryPanel({
         if (clipId) params.append("clipId", clipId);
 
         const response = await fetch(`/api/edits/history?${params.toString()}`);
-        const data = await response.json();
+        const data = (await response.json()) as {
+          success?: boolean;
+          edits?: EditRecord[];
+        };
 
-        if (data.success) {
+        if (data.success && data.edits) {
           setEdits(data.edits);
         }
       } catch (error) {
@@ -51,7 +53,7 @@ export function EditHistoryPanel({
       }
     };
 
-    loadHistory();
+    void loadHistory();
   }, [uploadedFileId, clipId]);
 
   const formatTimestamp = (seconds: number): string => {

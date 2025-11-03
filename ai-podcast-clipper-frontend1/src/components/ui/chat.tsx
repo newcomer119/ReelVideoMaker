@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Send, Loader2, MessageSquare, Clock, Scissors, Check, X, Trash2 } from "lucide-react"
+import { Send, Loader2, MessageSquare, Clock, Scissors, Check, Trash2 } from "lucide-react"
 import { Button } from "./button";
 import { Input } from "./input";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
@@ -61,14 +61,24 @@ export function Chat({ uploadedFileId, onTimestampClick }: ChatProps) {
         params.append("limit", "100");
 
         const response = await fetch(`/api/chat/history?${params.toString()}`);
-        const data = await response.json();
+        const data = (await response.json()) as {
+          success?: boolean;
+          messages?: Array<{
+            id?: string;
+            role?: string;
+            content?: string;
+            query?: string;
+            citations?: Citation[];
+            editPlans?: EditPlan[];
+          }>;
+        };
 
         if (data.success && data.messages) {
           // Convert database messages to UI messages
-          const uiMessages: Message[] = data.messages.map((msg: any) => ({
+          const uiMessages: Message[] = data.messages.map((msg) => ({
             id: msg.id,
-            role: msg.role,
-            content: msg.content,
+            role: (msg.role === "user" || msg.role === "assistant" ? msg.role : "user") as "user" | "assistant",
+            content: msg.content ?? "",
             query: msg.query,
             citations: msg.citations,
             editPlans: msg.editPlans,
@@ -82,7 +92,7 @@ export function Chat({ uploadedFileId, onTimestampClick }: ChatProps) {
       }
     };
 
-    loadHistory();
+    void loadHistory();
   }, [uploadedFileId]);
 
   const handleSend = async () => {
@@ -119,7 +129,10 @@ export function Chat({ uploadedFileId, onTimestampClick }: ChatProps) {
             }),
           });
 
-          const editData = await editResponse.json();
+          const editData = (await editResponse.json()) as {
+            success?: boolean;
+            edits?: EditPlan[];
+          };
           if (editData.success && editData.edits && editData.edits.length > 0) {
             editPlans = editData.edits;
           }
@@ -142,13 +155,19 @@ export function Chat({ uploadedFileId, onTimestampClick }: ChatProps) {
         }),
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        success?: boolean;
+        answer?: string;
+        citations?: Citation[];
+        query?: string;
+        error?: string;
+      };
 
       if (data.success) {
         const assistantMessage: Message = {
           id: Date.now().toString() + "-ai",
           role: "assistant",
-          content: data.answer,
+          content: data.answer ?? "",
           citations: data.citations,
           query: data.query,
           editPlans: editPlans,
@@ -157,7 +176,7 @@ export function Chat({ uploadedFileId, onTimestampClick }: ChatProps) {
       } else {
         const errorMessage: Message = {
           role: "assistant",
-          content: data.error || "Sorry, I couldn't process your question.",
+          content: data.error ?? "Sorry, I couldn't process your question.",
           citations: [],
         };
         setMessages((prev) => [...prev, errorMessage]);
@@ -194,7 +213,10 @@ export function Chat({ uploadedFileId, onTimestampClick }: ChatProps) {
         }),
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+      };
 
       if (data.success) {
         toast.success("Edit applied successfully!");
@@ -203,7 +225,7 @@ export function Chat({ uploadedFileId, onTimestampClick }: ChatProps) {
           window.location.reload();
         }, 1500);
       } else {
-        toast.error(data.error || "Failed to apply edit");
+        toast.error(data.error ?? "Failed to apply edit");
       }
     } catch (error) {
       console.error("Apply edit error:", error);
@@ -214,7 +236,7 @@ export function Chat({ uploadedFileId, onTimestampClick }: ChatProps) {
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
@@ -249,7 +271,7 @@ export function Chat({ uploadedFileId, onTimestampClick }: ChatProps) {
                     setMessages([]);
                     toast.success("Chat history cleared");
                   }
-                } catch (error) {
+                } catch {
                   toast.error("Failed to clear history");
                 }
               }
@@ -268,11 +290,11 @@ export function Chat({ uploadedFileId, onTimestampClick }: ChatProps) {
               <div>
                 <p className="mb-2">Ask questions about your video content!</p>
                 <p className="text-xs">
-                  Try: "What are the main topics discussed?" or "Find moments
-                  about pricing"
+                  Try: &quot;What are the main topics discussed?&quot; or &quot;Find moments
+                  about pricing&quot;
                 </p>
                 <p className="text-xs mt-2 opacity-70">
-                  You can also edit: "Cut the pause at 1:30" or "Remove content from 2:15 to 2:17"
+                  You can also edit: &quot;Cut the pause at 1:30&quot; or &quot;Remove content from 2:15 to 2:17&quot;
                 </p>
               </div>
             </div>
@@ -287,7 +309,7 @@ export function Chat({ uploadedFileId, onTimestampClick }: ChatProps) {
 
           {!isLoadingHistory && messages.map((message, idx) => (
             <div
-              key={message.id || idx}
+              key={message.id ?? idx}
               className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div

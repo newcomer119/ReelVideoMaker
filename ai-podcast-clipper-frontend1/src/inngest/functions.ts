@@ -152,7 +152,23 @@ export const processVideo = inngest.createFunction(
           try {
             // Type assertion needed because Prisma Client types need regeneration
             // Run: npx prisma generate to fix this TypeScript error
-            const transcript = await (db as any).transcript.create({
+            const transcript = await (db as unknown as {
+              transcript: {
+                create: (args: {
+                  data: {
+                    uploadedFileId: string;
+                    segments: {
+                      create: Array<{
+                        start: number;
+                        end: number;
+                        text: string;
+                        words: unknown;
+                      }>;
+                    };
+                  };
+                }) => Promise<{ id: string }>;
+              };
+            }).transcript.create({
               data: {
                 uploadedFileId,
                 segments: {
@@ -229,7 +245,8 @@ export const processVideo = inngest.createFunction(
             const clipsToCreate = clipKeys
               .map((clipKey) => {
                 // Extract clip index from filename
-                const match = clipKey.match(/clip_(\d+)\.mp4/);
+                const regex = /clip_(\d+)\.mp4/;
+                const match = regex.exec(clipKey);
                 if (!match) return null;
                 
                 const clipIndex = parseInt(match[1]!, 10);

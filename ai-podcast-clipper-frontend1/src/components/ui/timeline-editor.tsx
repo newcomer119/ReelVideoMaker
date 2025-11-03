@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Play, Pause, Scissors, Clock, Maximize2 } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Play, Pause, Scissors, Clock } from "lucide-react";
 import { Button } from "./button";
 import { Input } from "./input";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
@@ -19,7 +19,7 @@ interface TimelineEditorProps {
   selectedStart?: number;
   selectedEnd?: number;
   onTimeChange?: (time: number) => void;
-  onSelectionChange?: (start: number, end: number) => void;
+  onSelectionChange?: (_start: number, _end: number) => void;
   className?: string;
 }
 
@@ -81,8 +81,8 @@ export function TimelineEditor({
     e.preventDefault();
   };
 
-  const handleDrag = (e: MouseEvent) => {
-    if (!isDragging || !timelineRef.current) return;
+  const handleDrag = useCallback((e: MouseEvent) => {
+    if (!timelineRef.current) return;
     const rect = timelineRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = (x / rect.width) * 100;
@@ -92,11 +92,11 @@ export function TimelineEditor({
     if (onTimeChange) {
       onTimeChange(time);
     }
-  };
+  }, [duration, onTimeChange]);
 
-  const handleDragEnd = () => {
+  const handleDragEnd = useCallback(() => {
     setIsDragging(false);
-  };
+  }, []);
 
   useEffect(() => {
     if (isDragging) {
@@ -107,7 +107,7 @@ export function TimelineEditor({
         document.removeEventListener("mouseup", handleDragEnd);
       };
     }
-  }, [isDragging, duration]);
+  }, [isDragging, handleDrag, handleDragEnd]);
 
   const getSegmentAtTime = (time: number): TranscriptSegment | null => {
     return segments.find((seg) => seg.start <= time && seg.end >= time) ?? null;

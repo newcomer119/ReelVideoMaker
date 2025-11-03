@@ -2,13 +2,35 @@
 
 import { db } from "~/server/db";
 
+interface Citation {
+  segmentId: string;
+  start: number;
+  end: number;
+  text: string;
+  timestamp: string;
+  similarity: number;
+  uploadedFileId: string;
+}
+
+interface EditPlan {
+  type: string;
+  description: string;
+  targetClipId?: string;
+  startTime: number;
+  endTime: number;
+  newStartTime?: number;
+  newEndTime?: number;
+  splitPoint?: number;
+  confidence: number;
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   query?: string;
-  editPlans?: any[];
-  citations?: any[];
+  editPlans?: EditPlan[];
+  citations?: Citation[];
   createdAt: Date;
 }
 
@@ -22,12 +44,26 @@ export async function saveChatMessage(
   uploadedFileId?: string,
   options?: {
     query?: string;
-    editPlans?: any[];
-    citations?: any[];
+    editPlans?: EditPlan[];
+    citations?: Citation[];
   },
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const message = await (db as any).chatMessage.create({
+    const message = await (db as {
+      chatMessage: {
+        create: (args: {
+          data: {
+            role: "user" | "assistant";
+            content: string;
+            query?: string;
+            editPlans?: unknown;
+            citations?: unknown;
+            userId: string;
+            uploadedFileId?: string;
+          };
+        }) => Promise<{ id: string }>;
+      };
+    }).chatMessage.create({
       data: {
         role,
         content,
@@ -58,14 +94,39 @@ export async function saveChatMessage(
 export async function getChatHistory(
   userId: string,
   uploadedFileId?: string,
-  limit: number = 50,
+  limit = 50,
 ): Promise<{
   success: boolean;
   messages: ChatMessage[];
   error?: string;
 }> {
   try {
-    const messages = await (db as any).chatMessage.findMany({
+    const messages = await (db as {
+      chatMessage: {
+        findMany: (args: {
+          where: { userId: string; uploadedFileId?: string };
+          orderBy: { createdAt: "asc" };
+          take: number;
+          select: {
+            id: true;
+            role: true;
+            content: true;
+            query: true;
+            editPlans: true;
+            citations: true;
+            createdAt: true;
+          };
+        }) => Promise<Array<{
+          id: string;
+          role: string;
+          content: string;
+          query: string | null;
+          editPlans: unknown;
+          citations: unknown;
+          createdAt: Date;
+        }>>;
+      };
+    }).chatMessage.findMany({
       where: {
         userId,
         ...(uploadedFileId && { uploadedFileId }),
@@ -86,13 +147,13 @@ export async function getChatHistory(
     });
 
     // Parse JSON fields
-    const parsedMessages: ChatMessage[] = messages.map((msg: any) => ({
+    const parsedMessages: ChatMessage[] = messages.map((msg) => ({
       id: msg.id,
-      role: msg.role as "user" | "assistant",
+      role: (msg.role === "user" || msg.role === "assistant" ? msg.role : "user") as "user" | "assistant",
       content: msg.content,
-      query: msg.query,
-      editPlans: msg.editPlans ? (typeof msg.editPlans === "string" ? JSON.parse(msg.editPlans) : msg.editPlans) : undefined,
-      citations: msg.citations ? (typeof msg.citations === "string" ? JSON.parse(msg.citations) : msg.citations) : undefined,
+      query: msg.query ?? undefined,
+      editPlans: msg.editPlans ? (typeof msg.editPlans === "string" ? JSON.parse(msg.editPlans) as EditPlan[] : msg.editPlans as EditPlan[]) : undefined,
+      citations: msg.citations ? (typeof msg.citations === "string" ? JSON.parse(msg.citations) as Citation[] : msg.citations as Citation[]) : undefined,
       createdAt: msg.createdAt,
     }));
 
@@ -118,7 +179,13 @@ export async function clearChatHistory(
   uploadedFileId?: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await (db as any).chatMessage.deleteMany({
+    await (db as {
+      chatMessage: {
+        deleteMany: (args: {
+          where: { userId: string; uploadedFileId?: string };
+        }) => Promise<unknown>;
+      };
+    }).chatMessage.deleteMany({
       where: {
         userId,
         ...(uploadedFileId && { uploadedFileId }),

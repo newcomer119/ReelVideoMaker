@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Scissors, Play, History, Eye, Loader2 } from "lucide-react";
+import { Scissors, History, Eye, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./card";
 import { Button } from "./button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs";
@@ -33,19 +33,32 @@ export function EditInterface({ uploadedFileId, onClose }: EditInterfaceProps) {
   const [editEnd, setEditEnd] = useState<number | null>(null);
   const [editType, setEditType] = useState<string>("trim");
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewData, setPreviewData] = useState<any>(null);
+  const [previewData, setPreviewData] = useState<{
+    editPlan: EditPlan;
+    preview: {
+      before: { startTime: number; endTime: number; duration: number };
+      after: { startTime: number; endTime: number; duration: number };
+      affectedSegments: Array<{ start: number; end: number; text: string }>;
+    };
+  } | null>(null);
 
   useEffect(() => {
     const loadTranscript = async () => {
       setIsLoading(true);
       try {
         const response = await fetch(`/api/transcript?uploadedFileId=${uploadedFileId}`);
-        const data = await response.json();
+        const data = (await response.json()) as {
+          success?: boolean;
+          transcript?: {
+            segments?: TranscriptSegment[];
+            totalDuration?: number;
+          };
+        };
 
         if (data.success && data.transcript) {
-          const segments = data.transcript.segments || [];
+          const segments = data.transcript.segments ?? [];
           setTranscript(segments);
-          setDuration(data.transcript.totalDuration || 0);
+          setDuration(data.transcript.totalDuration ?? 0);
         }
       } catch (error) {
         console.error("Error loading transcript:", error);
@@ -55,7 +68,7 @@ export function EditInterface({ uploadedFileId, onClose }: EditInterfaceProps) {
       }
     };
 
-    loadTranscript();
+    void loadTranscript();
   }, [uploadedFileId]);
 
   const handlePreview = async () => {
@@ -66,7 +79,7 @@ export function EditInterface({ uploadedFileId, onClose }: EditInterfaceProps) {
 
     try {
       const editPlan: EditPlan = {
-        type: editType as any,
+        type: editType as EditPlan["type"],
         description: `${editType} from ${formatTime(editStart)} to ${formatTime(editEnd)}`,
         startTime: editStart,
         endTime: editEnd,
@@ -82,12 +95,20 @@ export function EditInterface({ uploadedFileId, onClose }: EditInterfaceProps) {
         }),
       });
 
-      const data = await response.json();
-      if (data.success) {
+      const data = (await response.json()) as {
+        success?: boolean;
+        preview?: {
+          before: { startTime: number; endTime: number; duration: number };
+          after: { startTime: number; endTime: number; duration: number };
+          affectedSegments: Array<{ start: number; end: number; text: string }>;
+        };
+        error?: string;
+      };
+      if (data.success && data.preview) {
         setPreviewData({ editPlan, preview: data.preview });
         setPreviewOpen(true);
       } else {
-        toast.error(data.error || "Failed to preview edit");
+        toast.error(data.error ?? "Failed to preview edit");
       }
     } catch (error) {
       console.error("Preview error:", error);
@@ -108,13 +129,16 @@ export function EditInterface({ uploadedFileId, onClose }: EditInterfaceProps) {
         }),
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+      };
       if (data.success) {
         toast.success("Edit applied successfully!");
         setPreviewOpen(false);
         if (onClose) onClose();
       } else {
-        toast.error(data.error || "Failed to apply edit");
+        toast.error(data.error ?? "Failed to apply edit");
       }
     } catch (error) {
       console.error("Apply edit error:", error);

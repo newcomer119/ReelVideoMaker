@@ -10,7 +10,14 @@ export async function indexTranscriptSegments(transcriptId: string) {
   try {
     // Get all segments for this transcript
     // Type assertion needed because Prisma Client types need regeneration
-    const segments = await (db as any).transcriptSegment.findMany({
+    const segments = await (db as {
+      transcriptSegment: {
+        findMany: (args: {
+          where: { transcriptId: string };
+          select: { id: true; text: true };
+        }) => Promise<Array<{ id: string; text: string }>>;
+      };
+    }).transcriptSegment.findMany({
       where: { transcriptId },
       select: {
         id: true,
@@ -24,7 +31,7 @@ export async function indexTranscriptSegments(transcriptId: string) {
 
     // Generate embeddings in batches (OpenAI supports up to 2048 texts per batch)
     const batchSize = 100;
-    const texts = segments.map((s: { text: string }) => s.text);
+    const texts = segments.map((s) => s.text);
 
     for (let i = 0; i < texts.length; i += batchSize) {
       const batch = texts.slice(i, i + batchSize);
@@ -37,7 +44,14 @@ export async function indexTranscriptSegments(transcriptId: string) {
           const segmentId = segments[segmentIndex]!.id;
 
           // Store embedding as JSON array (no pgvector needed)
-          await (db as any).transcriptSegment.update({
+          await (db as {
+            transcriptSegment: {
+              update: (args: {
+                where: { id: string };
+                data: { embedding: number[] };
+              }) => Promise<unknown>;
+            };
+          }).transcriptSegment.update({
             where: { id: segmentId },
             data: { embedding: embedding },
           });
@@ -80,7 +94,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
 export async function searchTranscriptSegments(
   query: string,
   uploadedFileId?: string,
-  limit: number = 10,
+  limit = 10,
 ) {
   try {
     // Generate embedding for the search query
@@ -89,7 +103,29 @@ export async function searchTranscriptSegments(
 
     // Get ALL transcript segments from the FULL VIDEO transcript (not just clips)
     // This ensures we can search and edit any part of the video, not just processed clips
-    const segments = await (db as any).transcriptSegment.findMany({
+    const segments = await (db as {
+      transcriptSegment: {
+        findMany: (args: {
+          where: {
+            embedding: { not: null };
+            transcript?: { uploadedFileId: string };
+          };
+          include: {
+            transcript: {
+              select: { uploadedFileId: true };
+            };
+          };
+        }) => Promise<Array<{
+          id: string;
+          start: number;
+          end: number;
+          text: string;
+          transcriptId: string;
+          embedding: number[] | null;
+          transcript: { uploadedFileId: string };
+        }>>;
+      };
+    }).transcriptSegment.findMany({
       where: {
         embedding: { not: null }, // Only segments that have been indexed
         ...(uploadedFileId && {
@@ -108,9 +144,19 @@ export async function searchTranscriptSegments(
     });
 
     // Calculate similarity scores
-    const results = segments
-      .map((segment: any) => {
-        const embedding = segment.embedding as number[] | null;
+    interface SearchResult {
+      segmentId: string;
+      start: number;
+      end: number;
+      text: string;
+      transcriptId: string;
+      uploadedFileId: string;
+      similarity: number;
+    }
+    
+    const results: SearchResult[] = segments
+      .map((segment) => {
+        const embedding = segment.embedding;
         if (!embedding || !Array.isArray(embedding)) {
           return null;
         }
@@ -128,9 +174,9 @@ export async function searchTranscriptSegments(
         };
       })
       .filter(
-        (r: any): r is NonNullable<typeof r> => r !== null && r.similarity > 0,
+        (r): r is SearchResult => r !== null && r.similarity > 0,
       )
-      .sort((a: any, b: any) => b.similarity - a.similarity)
+      .sort((a, b) => b.similarity - a.similarity)
       .slice(0, limit);
 
     return {

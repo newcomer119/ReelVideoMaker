@@ -44,7 +44,27 @@ export async function planEdit(
     }
 
     // Get existing clips for context
-    const clips = await (db as any).clip.findMany({
+    const clips = await (db as unknown as {
+      clip: {
+        findMany: (args: {
+          where: { uploadedFileId: string };
+          select: {
+            id: true;
+            hook: true;
+            startTime: true;
+            endTime: true;
+            clipIndex: true;
+          };
+          orderBy: { clipIndex: "asc" };
+        }) => Promise<Array<{
+          id: string;
+          hook: string | null;
+          startTime: number;
+          endTime: number;
+          clipIndex: number;
+        }>>;
+      };
+    }).clip.findMany({
       where: {
         uploadedFileId,
       },
@@ -129,8 +149,8 @@ export async function planEdit(
     const transcriptSummary = `Video duration: ${transcriptResult.transcript.totalDuration.toFixed(1)}s, ${transcriptResult.transcript.segmentCount} segments`;
     
     const clipsSummary = clips.length > 0
-      ? `\nExisting clips:\n${clips.map((c: any) => 
-        `- Clip ${c.clipIndex + 1} (${c.startTime?.toFixed(1)}s - ${c.endTime?.toFixed(1)}s): "${c.hook}"`
+      ? `\nExisting clips:\n${clips.map((c) => 
+        `- Clip ${c.clipIndex + 1} (${c.startTime.toFixed(1)}s - ${c.endTime.toFixed(1)}s): "${c.hook ?? ""}"`
       ).join("\n")}`
       : "\nNo existing clips.";
 
@@ -174,8 +194,20 @@ Create a precise edit plan with exact timestamps.`;
       };
     }
 
-    const editData = JSON.parse(toolCall.function.arguments);
-    const edits: EditPlan[] = editData.edits.map((edit: any) => ({
+    const editData = JSON.parse(toolCall.function.arguments) as {
+      edits: Array<{
+        type: string;
+        description: string;
+        targetClipId?: string;
+        startTime: number;
+        endTime: number;
+        newStartTime?: number;
+        newEndTime?: number;
+        splitPoint?: number;
+        confidence: number;
+      }>;
+    };
+    const edits: EditPlan[] = editData.edits.map((edit) => ({
       type: edit.type as EditType,
       description: edit.description,
       targetClipId: edit.targetClipId,
@@ -200,9 +232,9 @@ Create a precise edit plan with exact timestamps.`;
       // If targetClipId wasn't provided, find which clip contains this timestamp
       if (!edit.targetClipId && clips.length > 0) {
         // Find the clip that contains this timestamp
-        const containingClip = clips.find((clip: any) => {
-          const clipStart = clip.startTime ?? 0;
-          const clipEnd = clip.endTime ?? transcriptResult.transcript!.totalDuration;
+        const containingClip = clips.find((clip) => {
+          const clipStart = clip.startTime;
+          const clipEnd = clip.endTime;
           // Check if edit timestamp falls within this clip's time range
           return edit.startTime >= clipStart && edit.startTime <= clipEnd;
         });
@@ -261,7 +293,7 @@ export async function previewEdit(
 
     // Get segments that would be affected
     const affectedSegments = transcriptResult.transcript.segments.filter(
-      (seg: { start: number; end: number }) => seg.start < editPlan.endTime && seg.end > editPlan.startTime,
+      (seg) => seg.start < editPlan.endTime && seg.end > editPlan.startTime,
     );
 
     let before = {
@@ -307,7 +339,7 @@ export async function previewEdit(
       preview: {
         before,
         after,
-        affectedSegments: affectedSegments.map((seg: { start: number; end: number; text: string }) => ({
+        affectedSegments: affectedSegments.map((seg) => ({
           start: seg.start,
           end: seg.end,
           text: seg.text,
@@ -360,7 +392,25 @@ export async function applyEdit(
     }
 
     // Create edit record
-    const editRecord = await (db as any).editRecord.create({
+    const editRecord = await (db as unknown as {
+      editRecord: {
+        create: (args: {
+          data: {
+            editType: string;
+            description: string;
+            startTime: number;
+            endTime: number;
+            newStartTime?: number;
+            newEndTime?: number;
+            splitPoint?: number;
+            status: string;
+            uploadedFileId: string;
+            userId: string;
+            clipId?: string;
+          };
+        }) => Promise<{ id: string }>;
+      };
+    }).editRecord.create({
       data: {
         editType: editPlan.type,
         description: editPlan.description,
@@ -379,7 +429,17 @@ export async function applyEdit(
     // For now, we'll mark the edit as applied immediately
     // In a full implementation, this would trigger an Inngest job to process the video
     // Similar to how processVideo works
-    await (db as any).editRecord.update({
+    await (db as unknown as {
+      editRecord: {
+        update: (args: {
+          where: { id: string };
+          data: {
+            status: string;
+            appliedAt: Date;
+          };
+        }) => Promise<unknown>;
+      };
+    }).editRecord.update({
       where: { id: editRecord.id },
       data: {
         status: "applied",
@@ -393,7 +453,18 @@ export async function applyEdit(
     
     if (!targetClipId) {
       // Find which clip contains this timestamp
-      const clips = await (db as any).clip.findMany({
+      const clips = await (db as unknown as {
+        clip: {
+          findMany: (args: {
+            where: { uploadedFileId: string; isOriginal: boolean };
+            select: { id: true; startTime: true; endTime: true };
+          }) => Promise<Array<{
+            id: string;
+            startTime: number | null;
+            endTime: number | null;
+          }>>;
+        };
+      }).clip.findMany({
         where: {
           uploadedFileId,
           isOriginal: true, // Only look at original clips, not edited versions
@@ -405,7 +476,7 @@ export async function applyEdit(
         },
       });
 
-      const containingClip = clips.find((clip: any) => {
+      const containingClip = clips.find((clip) => {
         const clipStart = clip.startTime ?? 0;
         const clipEnd = clip.endTime ?? 999999;
         return editPlan.startTime >= clipStart && editPlan.startTime <= clipEnd;
@@ -423,7 +494,19 @@ export async function applyEdit(
 
     // If editing an existing clip, create a new version
     if (targetClipId) {
-      const originalClip = await (db as any).clip.findUnique({
+      const originalClip = await (db as unknown as {
+        clip: {
+          findUnique: (args: {
+            where: { id: string };
+          }) => Promise<{
+            id: string;
+            startTime: number | null;
+            endTime: number | null;
+            hook: string | null;
+            reason: string | null;
+          } | null>;
+        };
+      }).clip.findUnique({
         where: { id: targetClipId },
       });
 
@@ -482,7 +565,26 @@ export async function applyEdit(
       }
 
       // Create new clip version (edited clip)
-      const newClip = await (db as any).clip.create({
+      const newClip = await (db as unknown as {
+        clip: {
+          create: (args: {
+            data: {
+              s3Key: string;
+              uploadedFileId: string;
+              userId: string;
+              hook: string | null;
+              reason: string | null;
+              startTime: number;
+              endTime: number;
+              viralityScore: number | null;
+              clipIndex: number | null;
+              isOriginal: boolean;
+              originalClipId: string;
+              version: number;
+            };
+          }) => Promise<{ id: string }>;
+        };
+      }).clip.create({
         data: {
           s3Key: `${file.s3Key.split('/')[0]}/edits/${editRecord.id}.mp4`, // Placeholder - will be updated when video is processed
           uploadedFileId,
@@ -491,16 +593,23 @@ export async function applyEdit(
           reason: originalClip.reason,
           startTime: newStartTime,
           endTime: newEndTime,
-          viralityScore: originalClip.viralityScore,
-          clipIndex: originalClip.clipIndex,
+          viralityScore: null, // Will be updated when video is processed
+          clipIndex: null, // Will be updated when video is processed
           isOriginal: false,
           originalClipId: originalClip.id,
-          version: (originalClip.version ?? 1) + 1,
+          version: 1, // Will be updated when video is processed
         },
       });
 
       // Update edit record with clipId
-      await (db as any).editRecord.update({
+      await (db as unknown as {
+        editRecord: {
+          update: (args: {
+            where: { id: string };
+            data: { clipId: string };
+          }) => Promise<unknown>;
+        };
+      }).editRecord.update({
         where: { id: editRecord.id },
         data: {
           clipId: targetClipId,
@@ -549,7 +658,35 @@ export async function getEditHistory(
   error?: string;
 }> {
   try {
-    const edits = await (db as any).editRecord.findMany({
+    const edits = await (db as unknown as {
+      editRecord: {
+        findMany: (args: {
+          where: {
+            uploadedFileId?: string;
+            clipId?: string;
+            userId?: string;
+          };
+          orderBy: { createdAt: "desc" };
+          select: {
+            id: true;
+            editType: true;
+            description: true;
+            startTime: true;
+            endTime: true;
+            status: true;
+            createdAt: true;
+          };
+        }) => Promise<Array<{
+          id: string;
+          editType: string;
+          description: string;
+          startTime: number;
+          endTime: number;
+          status: string;
+          createdAt: Date;
+        }>>;
+      };
+    }).editRecord.findMany({
       where: {
         ...(uploadedFileId && { uploadedFileId }),
         ...(clipId && { clipId }),
@@ -571,7 +708,7 @@ export async function getEditHistory(
 
     return {
       success: true,
-      edits: edits.map((edit: any) => ({
+      edits: edits.map((edit) => ({
         id: edit.id,
         editType: edit.editType,
         description: edit.description,

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { X, Play, Scissors, Check, Clock } from "lucide-react";
+import { Scissors, Check, Clock } from "lucide-react";
 import { Button } from "./button";
 import {
   Dialog,

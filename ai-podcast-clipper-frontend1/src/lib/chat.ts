@@ -66,7 +66,29 @@ export async function chatWithTranscript(
 
     // Get clip information for context
     const clips = uploadedFileId
-      ? await (db as any).clip.findMany({
+      ? await (db as unknown as {
+          clip: {
+            findMany: (args: {
+              where: { uploadedFileId: string };
+              select: {
+                id: true;
+                hook: true;
+                reason: true;
+                startTime: true;
+                endTime: true;
+                clipIndex: true;
+              };
+              orderBy: { clipIndex: "asc" };
+            }) => Promise<Array<{
+              id: string;
+              hook: string | null;
+              reason: string | null;
+              startTime: number;
+              endTime: number;
+              clipIndex: number;
+            }>>;
+          };
+        }).clip.findMany({
           where: {
             uploadedFileId,
           },
@@ -86,7 +108,7 @@ export async function chatWithTranscript(
 
     // Prepare context for LLM
     const contextSegments = searchResults.results
-      .map((result: { start: number; end: number; text: string }, idx: number) => {
+      .map((result, idx) => {
         const timeRange = `${formatTimestamp(result.start)} - ${formatTimestamp(result.end)}`;
         return `[${idx + 1}] ${timeRange}: ${result.text}`;
       })
@@ -95,8 +117,8 @@ export async function chatWithTranscript(
     const clipsContext = clips.length > 0
       ? `\n\nClips in this video:\n${clips
           .map(
-            (clip: any) =>
-              `- Clip ${clip.clipIndex + 1}: "${clip.hook}" (${formatTimestamp(clip.startTime ?? 0)} - ${formatTimestamp(clip.endTime ?? 0)})`,
+            (clip) =>
+              `- Clip ${clip.clipIndex + 1}: "${clip.hook ?? ""}" (${formatTimestamp(clip.startTime)} - ${formatTimestamp(clip.endTime)})`,
           )
           .join("\n")}`
       : "";
@@ -137,14 +159,7 @@ Please provide a helpful answer to the question, citing specific timestamps wher
     // Prepare citations with timestamps
     const citations = searchResults.results
       .slice(0, 5) // Top 5 most relevant
-      .map((result: {
-        segmentId: string;
-        start: number;
-        end: number;
-        text: string;
-        similarity: number;
-        uploadedFileId: string;
-      }) => ({
+      .map((result) => ({
         segmentId: result.segmentId,
         start: result.start,
         end: result.end,

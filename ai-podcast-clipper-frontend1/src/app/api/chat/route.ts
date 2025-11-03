@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { chatWithTranscript } from "~/lib/chat";
 import { saveChatMessage } from "~/lib/chat-history";
@@ -13,7 +14,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const body = (await request.json()) as {
+      query?: string;
+      uploadedFileId?: string;
+      editPlans?: unknown;
+    };
     const { query, uploadedFileId, editPlans } = body;
 
     if (!query || typeof query !== "string") {
@@ -28,13 +33,13 @@ export async function POST(request: NextRequest) {
       "user",
       query,
       session.user.id,
-      uploadedFileId,
+      uploadedFileId ?? undefined,
       { query },
     );
 
     const result = await chatWithTranscript(
       query,
-      uploadedFileId,
+      uploadedFileId ?? undefined,
       session.user.id,
     );
 
@@ -42,9 +47,9 @@ export async function POST(request: NextRequest) {
       // Save error message
       await saveChatMessage(
         "assistant",
-        result.error || "Sorry, I couldn't process your question.",
+        result.error ?? "Sorry, I couldn't process your question.",
         session.user.id,
-        uploadedFileId,
+        uploadedFileId ?? undefined,
       );
 
       return NextResponse.json(
@@ -58,7 +63,7 @@ export async function POST(request: NextRequest) {
       "assistant",
       result.answer ?? "",
       session.user.id,
-      uploadedFileId,
+      uploadedFileId ?? undefined,
       {
         citations: result.citations,
         editPlans: editPlans,
