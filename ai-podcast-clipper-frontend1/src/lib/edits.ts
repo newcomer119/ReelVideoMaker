@@ -30,7 +30,7 @@ export interface EditPlan {
 export async function planEdit(
   editRequest: string,
   uploadedFileId: string,
-  userId?: string,
+  _userId?: string,
 ): Promise<{ success: boolean; edits: EditPlan[]; error?: string }> {
   try {
     // Get full transcript for context
@@ -222,7 +222,7 @@ Create a precise edit plan with exact timestamps.`;
     // Validate edits and automatically find which clip they belong to
     const validEdits = edits.map((edit) => {
       // Validate timestamps
-      if (edit.startTime < 0 || edit.endTime > transcriptResult.transcript!.totalDuration) {
+      if (!transcriptResult.transcript || edit.startTime < 0 || edit.endTime > transcriptResult.transcript.totalDuration) {
         return null;
       }
       if (edit.startTime >= edit.endTime) {
@@ -296,7 +296,7 @@ export async function previewEdit(
       (seg) => seg.start < editPlan.endTime && seg.end > editPlan.startTime,
     );
 
-    let before = {
+    const before = {
       startTime: editPlan.startTime,
       endTime: editPlan.endTime,
       duration: editPlan.endTime - editPlan.startTime,
@@ -449,7 +449,7 @@ export async function applyEdit(
 
     // IMPORTANT: Edits should only be applied to specific clips, not the entire video
     // If no clipId is provided, try to find the clip that contains the edit timestamp
-    let targetClipId = clipId || editPlan.targetClipId;
+    let targetClipId = clipId ?? editPlan.targetClipId;
     
     if (!targetClipId) {
       // Find which clip contains this timestamp

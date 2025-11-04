@@ -10,7 +10,7 @@ export async function indexTranscriptSegments(transcriptId: string) {
   try {
     // Get all segments for this transcript
     // Type assertion needed because Prisma Client types need regeneration
-    const segments = await (db as {
+    const segments = await (db as unknown as {
       transcriptSegment: {
         findMany: (args: {
           where: { transcriptId: string };
@@ -41,10 +41,15 @@ export async function indexTranscriptSegments(transcriptId: string) {
         for (let j = 0; j < batch.length; j++) {
           const segmentIndex = i + j;
           const embedding = embeddings[j];
-          const segmentId = segments[segmentIndex]!.id;
+          const segmentId = segments[segmentIndex]?.id;
+
+          // Skip if embedding or segmentId is missing
+          if (!embedding || !segmentId) {
+            continue;
+          }
 
           // Store embedding as JSON array (no pgvector needed)
-          await (db as {
+          await (db as unknown as {
             transcriptSegment: {
               update: (args: {
                 where: { id: string };
@@ -53,7 +58,7 @@ export async function indexTranscriptSegments(transcriptId: string) {
             };
           }).transcriptSegment.update({
             where: { id: segmentId },
-            data: { embedding: embedding },
+            data: { embedding },
           });
         }
     }
@@ -103,7 +108,7 @@ export async function searchTranscriptSegments(
 
     // Get ALL transcript segments from the FULL VIDEO transcript (not just clips)
     // This ensures we can search and edit any part of the video, not just processed clips
-    const segments = await (db as {
+    const segments = await (db as unknown as {
       transcriptSegment: {
         findMany: (args: {
           where: {

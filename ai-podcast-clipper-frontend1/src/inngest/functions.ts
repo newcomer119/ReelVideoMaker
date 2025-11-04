@@ -80,11 +80,12 @@ export const processVideo = inngest.createFunction(
           throw new Error(`Backend processing failed: ${processingResponse.status}`);
         }
 
-        const processingDataRaw = await processingResponse.json();
-        console.log("Backend response keys:", Object.keys(processingDataRaw));
-        console.log("Has transcript in response:", !!processingDataRaw.transcript);
-        console.log("Transcript segments count:", processingDataRaw.transcript?.segments?.length ?? 0);
-        console.log("Generated videos count:", processingDataRaw.generated_videos?.length ?? 0);
+        const processingDataRaw = (await processingResponse.json()) as unknown;
+        console.log("Backend response keys:", Object.keys(processingDataRaw as Record<string, unknown>));
+        const rawData = processingDataRaw as Record<string, unknown>;
+        console.log("Has transcript in response:", !!rawData.transcript);
+        console.log("Transcript segments count:", (rawData.transcript as { segments?: unknown[] } | undefined)?.segments?.length ?? 0);
+        console.log("Generated videos count:", (rawData.generated_videos as unknown[] | undefined)?.length ?? 0);
 
         const processingData = processingDataRaw as {
           status: string;
@@ -177,7 +178,7 @@ export const processVideo = inngest.createFunction(
                       start: segment.start ?? 0,
                       end: segment.end ?? 0,
                       text: segment.text ?? "",
-                      words: segment.words ? JSON.parse(JSON.stringify(segment.words)) : null,
+                      words: segment.words ? (JSON.parse(JSON.stringify(segment.words as unknown)) as unknown) : null,
                     };
                     if (idx === 0) {
                       console.log("First segment data:", segData);

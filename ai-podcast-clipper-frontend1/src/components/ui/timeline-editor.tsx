@@ -30,7 +30,7 @@ export function TimelineEditor({
   selectedStart,
   selectedEnd,
   onTimeChange,
-  onSelectionChange,
+  onSelectionChange: _onSelectionChange,
   className,
 }: TimelineEditorProps) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -59,9 +59,9 @@ export function TimelineEditor({
     return (time / duration) * 100;
   };
 
-  const getTimeFromPosition = (position: number): number => {
+  const getTimeFromPosition = useCallback((position: number): number => {
     return (position / 100) * duration;
-  };
+  }, [duration]);
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!timelineRef.current) return;
@@ -92,7 +92,7 @@ export function TimelineEditor({
     if (onTimeChange) {
       onTimeChange(time);
     }
-  }, [duration, onTimeChange]);
+  }, [duration, onTimeChange, getTimeFromPosition]);
 
   const handleDragEnd = useCallback(() => {
     setIsDragging(false);

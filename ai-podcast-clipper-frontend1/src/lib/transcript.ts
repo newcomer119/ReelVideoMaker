@@ -27,7 +27,7 @@ export async function getFullTranscript(uploadedFileId: string) {
     }
 
     // Get the full transcript with all segments
-    const transcript = await (db as {
+    const transcript = await (db as unknown as {
       transcript: {
         findFirst: (args: {
           where: { uploadedFileId: string };
@@ -127,7 +127,7 @@ export async function getTranscriptInRange(
     }
 
     // Get segments that overlap with the time range
-    const segments = await (db as {
+    const segments = await (db as unknown as {
       transcriptSegment: {
         findMany: (args: {
           where: {

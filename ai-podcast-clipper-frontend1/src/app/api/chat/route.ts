@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { chatWithTranscript } from "~/lib/chat";
 import { saveChatMessage } from "~/lib/chat-history";
+import type { EditPlan } from "~/lib/edits";
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       query?: string;
       uploadedFileId?: string;
-      editPlans?: unknown;
+      editPlans?: EditPlan[];
     };
     const { query, uploadedFileId, editPlans } = body;
 

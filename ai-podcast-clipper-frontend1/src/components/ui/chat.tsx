@@ -77,7 +77,7 @@ export function Chat({ uploadedFileId, onTimestampClick }: ChatProps) {
           // Convert database messages to UI messages
           const uiMessages: Message[] = data.messages.map((msg) => ({
             id: msg.id,
-            role: (msg.role === "user" || msg.role === "assistant" ? msg.role : "user") as "user" | "assistant",
+            role: msg.role === "user" || msg.role === "assistant" ? msg.role : "user",
             content: msg.content ?? "",
             query: msg.query,
             citations: msg.citations,

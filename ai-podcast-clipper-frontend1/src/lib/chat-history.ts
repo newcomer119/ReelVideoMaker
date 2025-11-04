@@ -49,7 +49,7 @@ export async function saveChatMessage(
   },
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const message = await (db as {
+    const message = await (db as unknown as {
       chatMessage: {
         create: (args: {
           data: {
@@ -101,7 +101,7 @@ export async function getChatHistory(
   error?: string;
 }> {
   try {
-    const messages = await (db as {
+    const messages = await (db as unknown as {
       chatMessage: {
         findMany: (args: {
           where: { userId: string; uploadedFileId?: string };
@@ -149,7 +149,7 @@ export async function getChatHistory(
     // Parse JSON fields
     const parsedMessages: ChatMessage[] = messages.map((msg) => ({
       id: msg.id,
-      role: (msg.role === "user" || msg.role === "assistant" ? msg.role : "user") as "user" | "assistant",
+      role: msg.role === "user" || msg.role === "assistant" ? msg.role : "user",
       content: msg.content,
       query: msg.query ?? undefined,
       editPlans: msg.editPlans ? (typeof msg.editPlans === "string" ? JSON.parse(msg.editPlans) as EditPlan[] : msg.editPlans as EditPlan[]) : undefined,
@@ -179,7 +179,7 @@ export async function clearChatHistory(
   uploadedFileId?: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await (db as {
+    await (db as unknown as {
       chatMessage: {
         deleteMany: (args: {
           where: { userId: string; uploadedFileId?: string };
