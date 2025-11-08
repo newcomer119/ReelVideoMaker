@@ -1,29 +1,68 @@
-# Create T3 App
+# AI Podcast Clipper Frontend
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+This package provides the customer-facing experience for generating short-form clips from long-form podcasts. It is a Next.js 14 app that talks to the backend Modal service, manages authentication, and exposes tooling for reviewing, editing, and exporting clips.
 
-## What's next? How do I make an app with this?
+## Project Goals
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+- Deliver a streamlined dashboard where creators can upload or point to podcast videos, then retrieve AI-curated vertical clips.
+- Surface clip metadata (hooks, virality score, timestamps) with previews and timeline overlays.
+- Offer an editing workspace where users can adjust subtitles, regenerate clips, and manage export-ready assets.
+- Integrate billing, usage tracking, and notifications to support paid plans.
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+## Architecture Overview
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+- `src/app` – App Router pages, protected dashboard, login/signup, API routes for auth, chat completion, clip edits, transcript access, and background jobs.
+- `src/components` – Reusable UI primitives (buttons, dialogs, tables) and feature components such as `clip-display` and `timeline-editor`.
+- `src/actions` – Server actions for OpenAI-powered clip generation, S3 uploads, and auth helpers.
+- `src/lib` – Shared utilities covering embeddings, vector search (pgvector), chat history persistence, and misc helpers.
+- `prisma` – SQLite dev database with Prisma schema; production targets pgvector-enabled Postgres.
+- `inngest` – Background jobs for long-running clip generation and post-processing.
 
-## Learn More
+## Getting Started
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+```bash
+npm install
+npm run dev
+```
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+The app expects a `.env` file. Copy `.env.example` (if present) or create one with:
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+```
+NEXTAUTH_SECRET=changeme
+NEXTAUTH_URL=http://localhost:3000
+OPENAI_API_KEY=sk-...
+DATABASE_URL=file:./prisma/db.sqlite
+S3_UPLOAD_BUCKET=ai-podcast-clipper11
+S3_REGION=eu-north-1
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+```
 
-## How do I deploy this?
+Run `npx prisma migrate dev` after updating the schema. For pgvector-specific setups, see `README-PGVECTOR.md` and the scripts in `scripts/`.
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+## Development Scripts
+
+- `npm run dev` – Start Next.js locally.
+- `npm run lint` – ESLint with project rules.
+- `npm run build` / `npm run start` – Production build preview.
+- `npm run inngest` – Start Inngest dev server (requires `inngest` CLI).
+
+## Working With The Backend
+
+- Upload flow: user uploads assets → `src/actions/s3.ts` sends to the shared S3 bucket → backend Modal job processes clips.
+- Clip data retrieval: dashboard pages call `/api/edits/*` and `/api/chat/*` routes which proxy to backend services and the vector DB.
+- Authentication: NextAuth with credentials provider; server routes use `src/server/auth` to confirm sessions before exposing data.
+
+## Roadmap & Ideas
+
+- Live preview sync between subtitle edits and rendered video.
+- Team workspaces, role-based access, and usage quotas.
+- Export automation: batch download, direct TikTok/YouTube uploads.
+- Rich analytics on clip performance and GPT-driven copy suggestions.
+
+## Contributing
+
+1. Create a feature branch.
+2. Update relevant docs/components.
+3. Run `npm run lint` and ensure migrations are committed if schema changes.
+4. Open a PR describing the feature and how to test it.
