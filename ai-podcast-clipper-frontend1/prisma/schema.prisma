@@ -67,8 +67,6 @@ model User {
     posts         Post[]
     UploadedFile  UploadedFile[]
     Clip          Clip[]
-    EditRecord    EditRecord[]
-    ChatMessage   ChatMessage[]
 }
 
 model UploadedFile {
@@ -82,8 +80,6 @@ model UploadedFile {
 
     clips       Clip[]
     transcript  Transcript?
-    edits       EditRecord[]
-    chatMessages ChatMessage[]
 
     user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
     userId String
@@ -117,75 +113,12 @@ model Clip {
     user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
     userId String
 
-    edits     EditRecord[]
     versions  Clip[] @relation("ClipVersions")
     original  Clip? @relation("ClipVersions", fields: [originalClipId], references: [id])
 
     @@index([s3Key])
     @@index([uploadedFileId])
     @@index([originalClipId])
-}
-
-model EditRecord {
-    id    String @id @default(cuid())
-    
-    // Edit details
-    editType      String // trim, split, merge, adjust_timing, remove, extend
-    description   String
-    startTime     Float
-    endTime       Float
-    newStartTime  Float?
-    newEndTime    Float?
-    splitPoint    Float?
-    
-    // Status
-    status        String @default("pending") // pending, applied, failed, cancelled
-    appliedAt     DateTime?
-    
-    // Relations
-    clip          Clip? @relation(fields: [clipId], references: [id], onDelete: Cascade)
-    clipId        String?
-    
-    uploadedFile   UploadedFile @relation(fields: [uploadedFileId], references: [id], onDelete: Cascade)
-    uploadedFileId String
-    
-    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-    userId String
-    
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    
-    @@index([clipId])
-    @@index([uploadedFileId])
-    @@index([userId])
-}
-
-model ChatMessage {
-    id    String @id @default(cuid())
-    
-    // Message content
-    role      String // "user" or "assistant"
-    content   String
-    query     String? // Original query for user messages
-    
-    // Edit plans (stored as JSON)
-    editPlans Json?
-    
-    // Citations (stored as JSON)
-    citations Json?
-    
-    // Relations
-    uploadedFile   UploadedFile? @relation(fields: [uploadedFileId], references: [id], onDelete: Cascade)
-    uploadedFileId String?
-    
-    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-    userId String
-    
-    createdAt DateTime @default(now())
-    
-    @@index([userId])
-    @@index([uploadedFileId])
-    @@index([createdAt])
 }
 
 model Transcript {

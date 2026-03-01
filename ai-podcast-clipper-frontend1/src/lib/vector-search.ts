@@ -107,7 +107,7 @@ export async function searchTranscriptSegments(
     const queryEmbedding = await generateEmbedding(query);
 
     // Get ALL transcript segments from the FULL VIDEO transcript (not just clips)
-    // This ensures we can search and edit any part of the video, not just processed clips
+    // This ensures we can search any part of the video, not just processed clips
     const segments = await (db as unknown as {
       transcriptSegment: {
         findMany: (args: {
